@@ -1,0 +1,39 @@
+# Book text — copyrighted, never commit
+books/
+
+# Preprocessing outputs — derived from copyrighted text
+backend/data/
+backend/chroma_db/
+
+# Environment variables
+backend/.env
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+backend/.venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

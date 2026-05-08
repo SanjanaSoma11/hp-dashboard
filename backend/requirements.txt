@@ -1,0 +1,18 @@
+# Web framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+
+# Environment
+python-dotenv==1.0.1
+
+# NLP — preprocessing only
+spacy==3.8.2
+vaderSentiment==3.3.2
+
+# RAG pipeline — preprocessing only
+langchain-text-splitters==0.3.3
+sentence-transformers==3.3.1
+chromadb==0.6.3
+
+# Gemini API
+google-generativeai==0.8.4
