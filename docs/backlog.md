@@ -1,6 +1,8 @@
+Load this file only during review or planning — do not load every session.
+
 # Backlog
 
-Remaining tasks, upcoming features, and known issues. Move items to `restart.md` when in progress, delete when done.
+Remaining tasks, upcoming features, and known issues. Move items to `state.md` when in progress, delete when done.
 
 ---
 
@@ -17,8 +19,8 @@ Remaining tasks, upcoming features, and known issues. Move items to `restart.md`
 ## Phase 2 — Preprocessing
 
 - [ ] `chapter_splitter.py` — parse ALL CAPS headings, strip page markers, output `chapters.json` (book → chapter → text)
-- [ ] `ner_mentions.py` — run spaCy `en_core_web_sm` on each chapter, extract character mentions, output `characters.json` (character × book × chapter frequency)
-- [ ] `sentiment.py` — run VADER on each chapter, output `sentiment.json` (book → chapter → compound/pos/neg scores)
+- [x] `ner_mentions.py` — run spaCy `en_core_web_sm` on each chapter, extract character mentions, output `characters.json` (character × book × chapter frequency)
+- [x] `sentiment.py` — run VADER on each chapter, output `sentiment.json` (book → chapter → compound/pos/neg scores)
 - [ ] `chunker.py` — chunk text with LangChain RecursiveCharacterTextSplitter (~500 tokens, 50 overlap), embed with `sentence-transformers/all-MiniLM-L6-v2`, store in ChromaDB collection `hp_books`
 - [ ] Validate all outputs — spot check a few characters and chapters manually
 

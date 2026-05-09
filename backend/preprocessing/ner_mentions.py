@@ -13,6 +13,7 @@ Run from any directory with the venv active:
 
 import json
 import logging
+import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -29,6 +30,23 @@ OUTPUT_PATH = ROOT / "backend" / "data" / "characters.json"
 # Filter names shorter than this — eliminates single-letter OCR artifacts
 # while keeping short valid names like "Al", "Jo", "Tom"
 MIN_NAME_LEN = 2
+
+BLOCKLIST: set[str] = {
+    "the order of",
+    "order of the phoenix",
+    "order of",
+    "order",
+}
+
+
+def normalise(text: str) -> str:
+    """Strip possessive suffixes and collapse internal whitespace."""
+    t = re.sub(r"\s+", " ", text).strip()
+    if t.endswith("’s") or t.endswith("’s"):
+        t = t[:-2]
+    elif t.endswith("’") or t.endswith("’"):
+        t = t[:-1]
+    return t.strip()
 
 
 def load_chapters(path: Path) -> list[dict]:
@@ -47,8 +65,8 @@ def extract_mentions(chapters: list[dict], nlp: Language) -> list[dict]:
         counts: Counter[str] = Counter()
         for ent in doc.ents:
             if ent.label_ == "PERSON":
-                name = ent.text.strip()
-                if len(name) >= MIN_NAME_LEN:
+                name = normalise(ent.text)
+                if len(name) >= MIN_NAME_LEN and name.lower() not in BLOCKLIST:
                     counts[name] += 1
 
         for name, count in counts.items():

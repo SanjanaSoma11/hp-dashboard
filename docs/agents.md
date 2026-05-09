@@ -1,3 +1,5 @@
+Load this file only when starting a task — do not load every session.
+
 # Agents
 
 Defines AI working modes for different tasks in this project. Tell Claude which mode to use at the start of a session.
@@ -66,9 +68,9 @@ Defines AI working modes for different tasks in this project. Tell Claude which 
 **Use when:** A feature is complete and needs a final check before moving on
 
 **Behaviour:**
-- Check against `docs/architecture.md` — does the implementation match the design?
+- Check against `docs/context.md` — does the implementation match the design?
 - Check `docs/backlog.md` — is this task actually done or are sub-tasks missed?
 - Look for: missing error handling, hardcoded values, copyright text accidentally included in any output, API keys in code
-- Update `docs/memory.md` with any new decisions made during this feature
-- Update `docs/restart.md` with current state
+- Update `docs/context.md` with any new decisions made during this feature
+- Update `docs/state.md` with current state
 - Update `docs/backlog.md` — mark completed items, add any new technical debt found
