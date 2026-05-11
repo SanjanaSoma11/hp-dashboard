@@ -3,11 +3,12 @@
 ner_mentions.py — Phase 2, step 2.
 
 Loads backend/data/chapters.json, runs spaCy NER (en_core_web_sm) on each
-chapter, extracts PERSON entities, and writes backend/data/characters.json.
+chapter, extracts PERSON entities, applies the Gemini-produced alias map from
+backend/data/aliases.json, and writes backend/data/characters.json.
 
 Each output record: { character_name, book_number, chapter_number, mention_count }
 
-Run from any directory with the venv active:
+Run alias_resolver.py first to produce aliases.json, then:
     python backend/preprocessing/ner_mentions.py
 """
 
@@ -26,9 +27,8 @@ log = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parents[2]
 INPUT_PATH = ROOT / "backend" / "data" / "chapters.json"
 OUTPUT_PATH = ROOT / "backend" / "data" / "characters.json"
+ALIASES_PATH = ROOT / "backend" / "data" / "aliases.json"
 
-# Filter names shorter than this — eliminates single-letter OCR artifacts
-# while keeping short valid names like "Al", "Jo", "Tom"
 MIN_NAME_LEN = 2
 
 BLOCKLIST: set[str] = {
@@ -42,9 +42,9 @@ BLOCKLIST: set[str] = {
 def normalise(text: str) -> str:
     """Strip possessive suffixes and collapse internal whitespace."""
     t = re.sub(r"\s+", " ", text).strip()
-    if t.endswith("’s") or t.endswith("’s"):
+    if t.endswith("'s") or t.endswith("’s"):
         t = t[:-2]
-    elif t.endswith("’") or t.endswith("’"):
+    elif t.endswith("'") or t.endswith("’"):
         t = t[:-1]
     return t.strip()
 
@@ -54,21 +54,56 @@ def load_chapters(path: Path) -> list[dict]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def extract_mentions(chapters: list[dict], nlp: Language) -> list[dict]:
-    """Run NER on each chapter; return per-(character, book, chapter) mention counts."""
-    records: list[dict] = []
+def load_aliases(path: Path) -> dict[str, str]:
+    """Load the Gemini-produced alias map from aliases.json.
 
+    Returns an empty dict if the file does not exist, with a warning to run
+    alias_resolver.py first.
+    """
+    if not path.exists():
+        log.warning(
+            f"aliases.json not found at {path}. "
+            "Run alias_resolver.py first to generate it. Proceeding without aliases."
+        )
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def extract_mentions(chapters: list[dict], nlp: Language, aliases: dict[str, str]) -> list[dict]:
+    """Run NER on each chapter; return per-(character, book, chapter) mention counts.
+
+    Two-pass approach:
+      Pass 1 — collect raw entity lists per chapter (single NER run).
+      Pass 2 — apply aliases to merge fragments into canonical forms before
+               aggregating per (book, chapter) counts.
+    """
     texts = [ch["text"] for ch in chapters]
     log.info(f"Running NER on {len(texts)} chapters (this may take a minute)...")
 
+    # Pass 1: collect raw per-chapter entity lists
+    raw_chapter_data: list[tuple[dict, list[str]]] = []
     for chapter, doc in zip(chapters, nlp.pipe(texts, batch_size=10)):
-        counts: Counter[str] = Counter()
+        names: list[str] = []
         for ent in doc.ents:
             if ent.label_ == "PERSON":
                 name = normalise(ent.text)
                 if len(name) >= MIN_NAME_LEN and name.lower() not in BLOCKLIST:
-                    counts[name] += 1
+                    names.append(name)
+        raw_chapter_data.append((chapter, names))
 
+    # Compute global mention counts across all chapters (raw, pre-resolution)
+    global_counts: Counter[str] = Counter()
+    for _, names in raw_chapter_data:
+        for name in names:
+            global_counts[name] += 1
+
+    # Pass 2: apply alias map and aggregate per (book, chapter)
+    records: list[dict] = []
+    for chapter, names in raw_chapter_data:
+        counts: Counter[str] = Counter()
+        for name in names:
+            resolved = aliases.get(name, name)
+            counts[resolved] += 1
         for name, count in counts.items():
             records.append({
                 "character_name": name,
@@ -77,7 +112,58 @@ def extract_mentions(chapters: list[dict], nlp: Language) -> list[dict]:
                 "mention_count": count,
             })
 
+    # Compute post-resolution global totals for the validation summary
+    resolved_totals: Counter[str] = Counter()
+    for r in records:
+        resolved_totals[r["character_name"]] += r["mention_count"]
+
+    _print_alias_summary(aliases, global_counts, resolved_totals)
+
     return records
+
+
+def _print_alias_summary(
+    aliases: dict[str, str],
+    global_counts: Counter[str],
+    resolved_totals: Counter[str],
+) -> None:
+    """Print alias resolution report with before/after comparison."""
+    print("\n" + "=" * 60)
+    print("ALIAS RESOLUTION SUMMARY")
+    print("=" * 60)
+
+    # Only show aliases that actually had mentions in this corpus
+    applied = {alias: canon for alias, canon in aliases.items() if alias in global_counts}
+
+    print(f"\n--- Applied aliases ({len(applied)} of {len(aliases)} loaded) ---")
+    if applied:
+        for alias, canon in sorted(applied.items(), key=lambda x: -global_counts[x[0]]):
+            before = global_counts[alias]
+            after = resolved_totals[canon]
+            print(f"  {alias:<30} ({before:>7,})  →  {canon:<30} ({after:>7,} post-resolution)")
+    else:
+        print("  (none applied — check aliases.json)")
+
+    print("\n--- Before / After for top resolved names ---")
+    print(f"  {'Alias':<30} {'Before':>8}   {'Canonical':<30} {'After':>8}")
+    print(f"  {'-'*30} {'-'*8}   {'-'*30} {'-'*8}")
+    for alias, canon in sorted(applied.items(), key=lambda x: -global_counts[x[0]])[:15]:
+        print(f"  {alias:<30} {global_counts[alias]:>8,}   {canon:<30} {resolved_totals[canon]:>8,}")
+
+    harry_canon = applied.get("Harry")
+    if harry_canon:
+        print(
+            f"\n[OK] Harry ({global_counts['Harry']:,} raw) → {harry_canon} "
+            f"({resolved_totals[harry_canon]:,} post-resolution)"
+        )
+    else:
+        print(f"\n[WARN] 'Harry' not resolved — verify aliases.json")
+
+    print(f"\n--- Top 20 characters post-resolution ---")
+    for i, (name, count) in enumerate(resolved_totals.most_common(20), 1):
+        marker = " ◄ Harry Potter (was separate node)" if name == "Harry Potter" and "Harry" in applied else ""
+        print(f"  {i:>2}. {count:>7,}  {name}{marker}")
+    print()
 
 
 def print_validation_summary(records: list[dict]) -> None:
@@ -106,13 +192,16 @@ def print_validation_summary(records: list[dict]) -> None:
 
 
 def main() -> None:
-    """Run NER extraction and write characters.json."""
+    """Run NER extraction with Gemini alias resolution and write characters.json."""
     chapters = load_chapters(INPUT_PATH)
     log.info(f"Loaded {len(chapters)} chapters from {INPUT_PATH}")
 
+    aliases = load_aliases(ALIASES_PATH)
+    log.info(f"Loaded {len(aliases)} aliases from {ALIASES_PATH}")
+
     nlp = spacy.load("en_core_web_sm")
 
-    records = extract_mentions(chapters, nlp)
+    records = extract_mentions(chapters, nlp, aliases)
     log.info(f"Extracted {len(records)} (character, book, chapter) records")
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)

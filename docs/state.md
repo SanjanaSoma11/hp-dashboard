@@ -6,39 +6,33 @@ Current project state. Read this at the start of every session before doing anyt
 
 ## Current Phase
 
-**Relationship Graph — pending design and library decision**
+**Phase 6 complete — Relationship graph shipped**
 
-**Last updated:** 2026-05-10
+**Last updated:** 2026-05-11
 
 ---
 
 ## What Was Just Completed
 
-- Phase 3 backend complete: FastAPI app with all routers (`story.py`, `characters.py`, `chat.py`) wired into `main.py`
-- Phase 4 frontend complete: Tailwind CSS configured, `/src/api/` fetch wrappers, two-panel layout, all chart components built
-- Phase 5 polish complete: loading states, error states, empty state for chat panel
-- All three charts confirmed rendering: sentiment line chart, character mentions frequency chart, word count bar chart
-- Chat panel streaming confirmed working end-to-end
-- Three bugs fixed:
-  - CORS port was hardcoded to `3000` instead of `5173` (Vite default)
-  - `mention_count` field mismatch between backend response and frontend expectation
-  - Stale uvicorn process blocking port on restart
+- **SentimentChart dynamic axes**: Y axis now uses a computed domain from actual compound values in the visible selection (±0.05 padding, rounded to 2dp) instead of the static [-1, 1]; X axis reindexes from 0 when books are filtered so the axis matches the visible chapter count; tooltip still shows correct book/chapter via preserved data fields; both axes animate via Recharts default transitions
+- **Gemini alias resolution**: replaced the heuristic `build_canonical_map` in ner_mentions.py with a Gemini-produced alias map; alias_resolver.py added; 22 validated aliases produced; Harry (17,039 raw) now resolves to Harry Potter (17,862 combined); characters.json and relationships.json regenerated; all relationship graph edges now reference canonical full names
+- Previous session: relationships.py written, RelationshipGraph.jsx built, COLORS utility extracted, sentiment chart book filter added
 
 ---
 
 ## What's Next
 
-Relationship graph — blocked on three things:
+No active blockers. Remaining backlog items:
 
-1. **Library decision**: D3 vs `react-force-graph` — unresolved; pick before writing any component code
-2. **Preprocessing**: `relationships.json` does not exist; needs a new script to extract character co-occurrence or interaction data from `characters.json` / `chapters.json`
-3. **Backend route**: `/api/characters/relationships` currently returns an empty list — needs data before it can be implemented
+- Book/chapter filter syncing across all charts (Phase 5 polish)
+- Allegiance shift timeline (indefinitely deferred — no data source)
+- Dialogue attribution (indefinitely deferred)
 
 ---
 
 ## Pending Decisions
 
-- Relationship graph library: D3 vs `react-force-graph`
+None.
 
 ---
 
@@ -52,3 +46,5 @@ Relationship graph — blocked on three things:
 | Session 4 | chunker.py written and validated; all preprocessing complete; Phase 2 done |
 | Session 5 | Phase 3 backend complete (all routers); Phase 4 frontend complete (Tailwind, API module, layout, all chart components, chat panel) |
 | Session 6 | Phase 5 polish complete; three bugs fixed (CORS port, mention_count field mismatch, stale uvicorn process); all charts and chat streaming confirmed working |
+| Session 7 | Alias resolution added to ner_mentions.py; relationships.py written; relationship graph frontend built with react-force-graph-2d; sentiment chart book filter added; COLORS utility extracted |
+| Session 8 | SentimentChart axes fixed (dynamic Y domain, reindexed X per visible selection); heuristic alias resolution replaced with Gemini call via alias_resolver.py (22 aliases, Harry → Harry Potter confirmed); characters.json + relationships.json regenerated |

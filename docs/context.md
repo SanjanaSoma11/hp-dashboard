@@ -57,12 +57,16 @@ hp-dashboard/
 ├── backend/
 │   ├── preprocessing/
 │   │   ├── chapter_splitter.py
+│   │   ├── alias_resolver.py   ← Gemini alias map; run before ner_mentions.py
 │   │   ├── ner_mentions.py
+│   │   ├── relationships.py
 │   │   ├── sentiment.py
 │   │   └── chunker.py
 │   ├── data/
 │   │   ├── chapters.json
 │   │   ├── sentiment.json
+│   │   ├── aliases.json        ← Gemini alias map (gitignored)
+│   │   ├── aliases_raw.json    ← Gemini response cache (gitignored)
 │   │   ├── characters.json
 │   │   └── relationships.json
 │   ├── chroma_db/          ← ChromaDB persisted store
@@ -102,7 +106,9 @@ hp-dashboard/
 | Backend | FastAPI (Python) | Fits Python-heavy preprocessing stack |
 | Vector store | ChromaDB | Fully local, no external service needed |
 | NER | spaCy | Best Python NER library for named entity extraction |
-| NER entity normalisation | Possessives stripped before counting; structural phrase fragments blocked via blocklist; no alias merging yet | Alias map deferred to relationship graph phase where it's needed properly |
+| NER entity normalisation | Possessives stripped before counting; structural phrase fragments blocked via blocklist; Gemini-based alias resolution via alias_resolver.py | alias_resolver.py sends top-200 entities to Gemini in one call, gets back a JSON alias→canonical map, validates every canonical value against the input list (prevents hallucination), writes aliases.json; ner_mentions.py loads aliases.json at startup and applies it in Pass 2; 22 validated aliases resolved including Harry→Harry Potter, Dumbledore→Albus Dumbledore, Hermione→Hermione Granger, Malfoy→Draco Malfoy; ambiguous surnames (Weasley, Ron) correctly omitted from map by Gemini |
+| Relationship graph library | react-force-graph-2d | Force-directed layout, canvas-based, simple API, maintained; D3 rejected as too low-level for this scope |
+| Relationship edge construction | Chapter co-occurrence, top-30 characters only | Co-occurrence is computable from existing characters.json; interaction-based approach would need dialogue attribution (unresolved) |
 | Sentiment | VADER | Lightweight, no model download, works well on narrative text |
 | Chunking | LangChain | Standard RAG tooling |
 | Embedding model | `sentence-transformers/all-MiniLM-L6-v2` | Confirmed over Gemini Embedding API — fully local, no API cost, runs on MPS |
@@ -195,10 +201,10 @@ hp-dashboard/
 | Book 5 | 39 chapters detected vs 38 expected (1 extra) | Possible false-positive ALL CAPS heading in source text | Accepted as OCR artifact. |
 | All books | spaCy PERSON false positives | "the Order of" and possessive forms (e.g. "Harry's") were surfacing as separate entities. Fixed via normalise() and blocklist in ner_mentions.py. "Harry" vs "Harry Potter" left fragmented intentionally — alias resolution deferred to relationship graph phase. | — |
 | All books | VADER compound saturation | VADER compound score saturated at ±0.9999 for long chapter texts due to sigmoid accumulation on full chapter strings. Fixed in session 6: `sentiment.py` now scores at sentence level via `nltk.sent_tokenize` and averages compound/pos/neg/neu per chapter. Compound range is now -0.2157 to +0.1340 with 0/198 chapters saturated. | Resolved |
+| All books | Alias resolution — Gemini approach, ambiguous surnames unresolved by design | Replaced the heuristic frequency-inversion guard with a Gemini call (alias_resolver.py). Gemini correctly resolved Harry→Harry Potter, Dumbledore→Albus Dumbledore, Hermione→Hermione Granger, Malfoy→Draco Malfoy, and 18 others. Gemini correctly omitted ambiguous surnames (Weasley, Ron→Ron Weasley was discarded since "Ron Weasley" is not in top-200 entities) — these remain as unresolved nodes in the relationship graph. "Potter" (640 mentions, separate from "Harry Potter") is also unresolved — valid because "Potter" as a bare surname refers to Harry, James, and Lily in different contexts. Remaining limitation: single-token names that lack a matching full form in top-200 cannot be resolved (Ron, Lupin, McGonagall). |
 
 ---
 
 ## Open Questions
 
 - How to handle dialogue attribution (who says what) — spaCy alone won't solve this cleanly
-- Exact Recharts components to use for relationship graph (likely need D3 or a graph library instead)

@@ -13,7 +13,7 @@ export default function CharacterIntel({ onContextChange }) {
 
       <div className="space-y-2">
         <h3 className="text-sm font-medium text-neutral-400">Relationships</h3>
-        <RelationshipGraph data={[]} />
+        <RelationshipGraph />
       </div>
     </section>
   )

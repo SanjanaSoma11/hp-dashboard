@@ -4,6 +4,8 @@ books/
 # Preprocessing outputs — derived from copyrighted text
 backend/data/
 backend/chroma_db/
+backend/data/aliases.json
+backend/data/aliases_raw.json
 
 # Environment variables
 backend/.env

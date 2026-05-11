@@ -47,7 +47,7 @@ Remaining tasks, upcoming features, and known issues. Move items to `state.md` w
 - [x] `StoryArc/` — death timeline (scatter or bar)
 - [x] `StoryArc/` — word count bar chart per book
 - [x] `CharacterIntel/` — character mention frequency line chart (filterable by character)
-- [ ] `CharacterIntel/` — relationship graph — **BLOCKED**: see Technical Debt
+- [x] `CharacterIntel/` — relationship graph — force-directed graph via react-force-graph-2d; co-occurrence edges from top-30 characters
 - [ ] `CharacterIntel/` — allegiance shift timeline — **BLOCKED**: see Technical Debt
 - [x] `ChatPanel/` — chat UI with message history
 - [x] `ChatPanel/` — chart context serialisation: on each message, capture current chart type + visible data + active filters and include in request payload
@@ -60,6 +60,7 @@ Remaining tasks, upcoming features, and known issues. Move items to `state.md` w
 - [x] Loading states on all charts
 - [x] Error states on all charts and chat
 - [x] Empty state for chat panel on first load
+- [x] Per-chart book filter: sentiment chart now has a multi-select book dropdown
 - [ ] Book/chapter filter that syncs across all charts
 - [ ] Dark mode (optional)
 
@@ -68,7 +69,8 @@ Remaining tasks, upcoming features, and known issues. Move items to `state.md` w
 ## Technical Debt
 
 - Dialogue attribution (who says what) is unresolved — current NER approach will find character names but not tag dialogue speakers. May need a custom heuristic or a separate model.
-- **Relationship graph** — blocked on two things: (a) library decision between D3 and `react-force-graph` is unresolved; (b) `relationships.json` does not exist and needs a new preprocessing script to extract character co-occurrence or interaction data; `/api/characters/relationships` currently returns an empty list.
+- ~~**Relationship graph** — blocked on: library decision; relationships.json missing; empty route.~~ **Resolved in session 7**: `react-force-graph-2d` chosen; `relationships.py` written and run; route now has Pydantic model; frontend component complete.
+- ~~**COLORS duplication** — COLORS array was duplicated between MentionsChart and RelationshipGraph.~~ **Resolved in session 7**: extracted to `src/utils/colors.js`.
 - **Allegiance shift timeline** — no data source; would require a preprocessing script designed from scratch. Moved here from Phase 4 as indefinitely deferred.
 - Embedding model confirmed: `sentence-transformers/all-MiniLM-L6-v2`. Gemini Embedding API not used.
 - CORS port was hardcoded to `3000` instead of `5173` (Vite default) — fixed in session 6, but Vite default port should be verified at setup in future projects.

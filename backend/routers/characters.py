@@ -22,7 +22,6 @@ _mentions: list[dict] = [
     for r in _raw
 ]
 
-# TODO: relationships data not yet populated
 with (_DATA_DIR / "relationships.json").open() as f:
     _relationships: list = json.load(f)
 
@@ -36,14 +35,19 @@ class MentionRecord(BaseModel):
     mention_count: int
 
 
+class RelationshipRecord(BaseModel):
+    source: str
+    target: str
+    weight: int
+
+
 @router.get("/mentions", response_model=list[MentionRecord])
 def get_mentions() -> list[dict]:
     """Return per-chapter character mention counts."""
     return _mentions
 
 
-@router.get("/relationships", response_model=list)
+@router.get("/relationships", response_model=list[RelationshipRecord])
 def get_relationships() -> list:
-    """Return character relationship graph data. Placeholder — data not yet populated."""
-    # TODO: relationships data not yet populated
+    """Return character co-occurrence edge list for the top 30 characters."""
     return _relationships
