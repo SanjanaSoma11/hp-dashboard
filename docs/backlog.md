@@ -8,58 +8,58 @@ Remaining tasks, upcoming features, and known issues. Move items to `state.md` w
 
 ## Phase 1 — Project Setup
 
-- [ ] Initialise git repo with `.gitignore`
-- [ ] Create `/backend/` with `requirements.txt` and `main.py`
-- [ ] Create `/frontend/` with Vite + React scaffold
-- [ ] Set up `.env` with Gemini API key
-- [ ] Move `docs/` into project root
+- [x] Initialise git repo with `.gitignore`
+- [x] Create `/backend/` with `requirements.txt` and `main.py`
+- [x] Create `/frontend/` with Vite + React scaffold
+- [x] Set up `.env` with Gemini API key
+- [x] Move `docs/` into project root
 
 ---
 
 ## Phase 2 — Preprocessing
 
-- [ ] `chapter_splitter.py` — parse ALL CAPS headings, strip page markers, output `chapters.json` (book → chapter → text)
+- [x] `chapter_splitter.py` — parse ALL CAPS headings, strip page markers, output `chapters.json` (book → chapter → text)
 - [x] `ner_mentions.py` — run spaCy `en_core_web_sm` on each chapter, extract character mentions, output `characters.json` (character × book × chapter frequency)
 - [x] `sentiment.py` — run VADER on each chapter, output `sentiment.json` (book → chapter → compound/pos/neg scores)
-- [ ] `chunker.py` — chunk text with LangChain RecursiveCharacterTextSplitter (~500 tokens, 50 overlap), embed with `sentence-transformers/all-MiniLM-L6-v2`, store in ChromaDB collection `hp_books`
-- [ ] Validate all outputs — spot check a few characters and chapters manually
+- [x] `chunker.py` — chunk text with LangChain RecursiveCharacterTextSplitter (~500 tokens, 50 overlap), embed with `sentence-transformers/all-MiniLM-L6-v2`, store in ChromaDB collection `hp_books`
+- [x] Validate all outputs — spot check a few characters and chapters manually
 
 ---
 
 ## Phase 3 — Backend
 
-- [ ] `main.py` — FastAPI app with CORS enabled for `localhost:3000`
-- [ ] `routers/story.py` — `/api/story/sentiment`, `/api/story/deaths`, `/api/story/wordcount`
-- [ ] `routers/characters.py` — `/api/characters/mentions`, `/api/characters/relationships`
-- [ ] `routers/chat.py` — `/api/chat` POST endpoint: accepts question + chart context, queries ChromaDB, calls Gemini, streams response
-- [ ] `.env` loading with `python-dotenv`
-- [ ] Basic error handling on all routes
+- [x] `main.py` — FastAPI app with CORS enabled
+- [x] `routers/story.py` — `/api/story/sentiment`, `/api/story/deaths`, `/api/story/wordcount`
+- [x] `routers/characters.py` — `/api/characters/mentions`, `/api/characters/relationships`
+- [x] `routers/chat.py` — `/api/chat` POST endpoint: accepts question + chart context, queries ChromaDB, calls Gemini, streams response
+- [x] `.env` loading with `python-dotenv`
+- [x] Basic error handling on all routes
 
 ---
 
 ## Phase 4 — Frontend
 
-- [ ] Scaffold React app with Vite
-- [ ] Set up Tailwind CSS
-- [ ] `/src/api/` module — typed fetch wrappers for all backend routes
-- [ ] Layout — two-panel: dashboard on left, chat sidebar on right
-- [ ] `StoryArc/` — sentiment line chart (x = chapter, y = compound score, coloured by book)
-- [ ] `StoryArc/` — death timeline (scatter or bar)
-- [ ] `StoryArc/` — word count bar chart per book
-- [ ] `CharacterIntel/` — character mention frequency line chart (filterable by character)
-- [ ] `CharacterIntel/` — relationship graph (consider D3 force graph or `react-force-graph`)
-- [ ] `CharacterIntel/` — allegiance shift timeline
-- [ ] `ChatPanel/` — chat UI with message history
-- [ ] `ChatPanel/` — chart context serialisation: on each message, capture current chart type + visible data + active filters and include in request payload
-- [ ] Streaming response rendering in chat panel
+- [x] Scaffold React app with Vite
+- [x] Set up Tailwind CSS
+- [x] `/src/api/` module — typed fetch wrappers for all backend routes
+- [x] Layout — two-panel: dashboard on left, chat sidebar on right
+- [x] `StoryArc/` — sentiment line chart (x = chapter, y = compound score, coloured by book)
+- [x] `StoryArc/` — death timeline (scatter or bar)
+- [x] `StoryArc/` — word count bar chart per book
+- [x] `CharacterIntel/` — character mention frequency line chart (filterable by character)
+- [ ] `CharacterIntel/` — relationship graph — **BLOCKED**: see Technical Debt
+- [ ] `CharacterIntel/` — allegiance shift timeline — **BLOCKED**: see Technical Debt
+- [x] `ChatPanel/` — chat UI with message history
+- [x] `ChatPanel/` — chart context serialisation: on each message, capture current chart type + visible data + active filters and include in request payload
+- [x] Streaming response rendering in chat panel
 
 ---
 
 ## Phase 5 — Polish
 
-- [ ] Loading states on all charts
-- [ ] Error states on all charts and chat
-- [ ] Empty state for chat panel on first load
+- [x] Loading states on all charts
+- [x] Error states on all charts and chat
+- [x] Empty state for chat panel on first load
 - [ ] Book/chapter filter that syncs across all charts
 - [ ] Dark mode (optional)
 
@@ -68,5 +68,7 @@ Remaining tasks, upcoming features, and known issues. Move items to `state.md` w
 ## Technical Debt
 
 - Dialogue attribution (who says what) is unresolved — current NER approach will find character names but not tag dialogue speakers. May need a custom heuristic or a separate model.
-- Relationship graph library choice not finalised — Recharts can't do graph layouts. Need D3 or `react-force-graph`.
-- Embedding model not confirmed — `all-MiniLM-L6-v2` is a sensible default but Gemini's embedding API could be used instead for consistency.
+- **Relationship graph** — blocked on two things: (a) library decision between D3 and `react-force-graph` is unresolved; (b) `relationships.json` does not exist and needs a new preprocessing script to extract character co-occurrence or interaction data; `/api/characters/relationships` currently returns an empty list.
+- **Allegiance shift timeline** — no data source; would require a preprocessing script designed from scratch. Moved here from Phase 4 as indefinitely deferred.
+- Embedding model confirmed: `sentence-transformers/all-MiniLM-L6-v2`. Gemini Embedding API not used.
+- CORS port was hardcoded to `3000` instead of `5173` (Vite default) — fixed in session 6, but Vite default port should be verified at setup in future projects.

@@ -105,7 +105,8 @@ hp-dashboard/
 | NER entity normalisation | Possessives stripped before counting; structural phrase fragments blocked via blocklist; no alias merging yet | Alias map deferred to relationship graph phase where it's needed properly |
 | Sentiment | VADER | Lightweight, no model download, works well on narrative text |
 | Chunking | LangChain | Standard RAG tooling |
-| AI model | Gemini 2.0 Flash | Free tier, large context window, good quality |
+| Embedding model | `sentence-transformers/all-MiniLM-L6-v2` | Confirmed over Gemini Embedding API — fully local, no API cost, runs on MPS |
+| AI model | Gemini 3.1 Flash Lite via Vertex AI (google-genai SDK, ADC auth) | Switched from API key auth — uses GCP project hpdashboard, requires gcloud auth application-default login on local machine |
 | Deployment | None — localhost only | Book text is copyrighted, keeping everything local |
 | Book text in git | No — gitignored | Copyright compliance |
 | Preprocessing data in git | No — gitignored | Derived from copyrighted text |
@@ -200,5 +201,4 @@ hp-dashboard/
 ## Open Questions
 
 - How to handle dialogue attribution (who says what) — spaCy alone won't solve this cleanly
-- Whether to use `sentence-transformers` or Gemini's own embedding API for ChromaDB
 - Exact Recharts components to use for relationship graph (likely need D3 or a graph library instead)
