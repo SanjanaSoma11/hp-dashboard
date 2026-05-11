@@ -8,6 +8,7 @@ python-dotenv==1.0.1
 # NLP — preprocessing only
 spacy==3.8.2
 vaderSentiment==3.3.2
+nltk==3.9.4
 
 # RAG pipeline — preprocessing only
 langchain-text-splitters==0.3.3

@@ -194,7 +194,7 @@ hp-dashboard/
 | Book 4 (Goblet of Fire) | 35 chapters detected vs 37 expected (2 short) | One or more chapter headings lost in OCR — text is present but headings are missing, causing the splitter to merge those chapters into the previous one | Accepted as OCR ceiling, not a code bug. Do not attempt to fix in `chapter_splitter.py`. |
 | Book 5 | 39 chapters detected vs 38 expected (1 extra) | Possible false-positive ALL CAPS heading in source text | Accepted as OCR artifact. |
 | All books | spaCy PERSON false positives | "the Order of" and possessive forms (e.g. "Harry's") were surfacing as separate entities. Fixed via normalise() and blocklist in ner_mentions.py. "Harry" vs "Harry Potter" left fragmented intentionally — alias resolution deferred to relationship graph phase. | — |
-| All books | VADER compound saturation | VADER compound score saturates at ±0.9999 for long chapter texts due to sigmoid accumulation. Expected behaviour — not a bug. Granularity is sufficient for chapter-level story arc charts. | — |
+| All books | VADER compound saturation | VADER compound score saturated at ±0.9999 for long chapter texts due to sigmoid accumulation on full chapter strings. Fixed in session 6: `sentiment.py` now scores at sentence level via `nltk.sent_tokenize` and averages compound/pos/neg/neu per chapter. Compound range is now -0.2157 to +0.1340 with 0/198 chapters saturated. | Resolved |
 
 ---
 
