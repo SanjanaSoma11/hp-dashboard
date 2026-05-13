@@ -28,6 +28,7 @@ ROOT = Path(__file__).resolve().parents[2]
 INPUT_PATH = ROOT / "backend" / "data" / "chapters.json"
 OUTPUT_PATH = ROOT / "backend" / "data" / "characters.json"
 ALIASES_PATH = ROOT / "backend" / "data" / "aliases.json"
+MANUAL_ALIASES_PATH = ROOT / "backend" / "data" / "character_aliases.manual.json"
 
 MIN_NAME_LEN = 2
 
@@ -69,7 +70,25 @@ def load_aliases(path: Path) -> dict[str, str]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def extract_mentions(chapters: list[dict], nlp: Language, aliases: dict[str, str]) -> list[dict]:
+def load_manual_aliases(path: Path) -> dict[str, str | None]:
+    """Load the hand-curated alias map from character_aliases.manual.json.
+
+    Returns an empty dict if the file does not exist.
+    Entries with null values are intentionally ambiguous and are excluded.
+    """
+    if not path.exists():
+        log.warning(f"Manual aliases file not found at {path}. Proceeding without manual aliases.")
+        return {}
+    raw: dict[str, str | None] = json.loads(path.read_text(encoding="utf-8"))
+    return {alias: canon for alias, canon in raw.items() if canon is not None}
+
+
+def extract_mentions(
+    chapters: list[dict],
+    nlp: Language,
+    aliases: dict[str, str],
+    chapter_word_counts: dict[tuple[int, int], int],
+) -> list[dict]:
     """Run NER on each chapter; return per-(character, book, chapter) mention counts.
 
     Two-pass approach:
@@ -100,16 +119,21 @@ def extract_mentions(chapters: list[dict], nlp: Language, aliases: dict[str, str
     # Pass 2: apply alias map and aggregate per (book, chapter)
     records: list[dict] = []
     for chapter, names in raw_chapter_data:
+        book_num = chapter["book_number"]
+        chap_num = chapter["chapter_number"]
+        word_count = chapter_word_counts.get((book_num, chap_num), 0)
         counts: Counter[str] = Counter()
         for name in names:
             resolved = aliases.get(name, name)
             counts[resolved] += 1
         for name, count in counts.items():
+            per_1k = round((count / word_count) * 1000, 2) if word_count > 0 else 0.0
             records.append({
                 "character_name": name,
-                "book_number": chapter["book_number"],
-                "chapter_number": chapter["chapter_number"],
+                "book_number": book_num,
+                "chapter_number": chap_num,
                 "mention_count": count,
+                "mentions_per_1k_words": per_1k,
             })
 
     # Compute post-resolution global totals for the validation summary
@@ -192,16 +216,29 @@ def print_validation_summary(records: list[dict]) -> None:
 
 
 def main() -> None:
-    """Run NER extraction with Gemini alias resolution and write characters.json."""
+    """Run NER extraction with merged alias resolution and write characters.json."""
     chapters = load_chapters(INPUT_PATH)
     log.info(f"Loaded {len(chapters)} chapters from {INPUT_PATH}")
 
-    aliases = load_aliases(ALIASES_PATH)
-    log.info(f"Loaded {len(aliases)} aliases from {ALIASES_PATH}")
+    gemini_aliases = load_aliases(ALIASES_PATH)
+    log.info(f"Loaded {len(gemini_aliases)} Gemini aliases from {ALIASES_PATH}")
+
+    manual_aliases = load_manual_aliases(MANUAL_ALIASES_PATH)
+    log.info(f"Loaded {len(manual_aliases)} manual aliases from {MANUAL_ALIASES_PATH}")
+
+    # Merge: manual takes priority over Gemini for any overlapping alias key
+    aliases: dict[str, str] = {**gemini_aliases, **manual_aliases}
+    log.info(f"Merged alias map: {len(aliases)} total entries ({len(manual_aliases)} manual, {len(gemini_aliases)} Gemini)")
+
+    # Build word-count lookup from chapter text (used for mentions_per_1k_words)
+    chapter_word_counts: dict[tuple[int, int], int] = {
+        (ch["book_number"], ch["chapter_number"]): len(ch["text"].split())
+        for ch in chapters
+    }
 
     nlp = spacy.load("en_core_web_sm")
 
-    records = extract_mentions(chapters, nlp, aliases)
+    records = extract_mentions(chapters, nlp, aliases, chapter_word_counts)
     log.info(f"Extracted {len(records)} (character, book, chapter) records")
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)

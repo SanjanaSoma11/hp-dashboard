@@ -1,4 +1,4 @@
-const BASE = 'http://localhost:8000'
+import { API_BASE as BASE } from './config.js'
 
 export async function fetchMentions() {
   const res = await fetch(`${BASE}/api/characters/mentions`)

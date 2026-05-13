@@ -13,6 +13,7 @@ Run from any directory with the venv active:
 import json
 import logging
 import random
+from collections import defaultdict
 from pathlib import Path
 
 import chromadb
@@ -24,6 +25,7 @@ log = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[2]
 INPUT_PATH = ROOT / "backend" / "data" / "chapters.json"
+CHARACTERS_PATH = ROOT / "backend" / "data" / "characters.json"
 CHROMA_PATH = ROOT / "backend" / "chroma_db"
 
 COLLECTION_NAME = "hp_books"
@@ -31,11 +33,35 @@ CHUNK_SIZE = 500
 CHUNK_OVERLAP = 50
 EMBED_BATCH = 64
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+TOP_N_CHARACTERS = 30
+
+
+def load_top_characters(n: int) -> list[str]:
+    """Return the top-N character names by total mention count."""
+    with open(CHARACTERS_PATH, encoding="utf-8") as f:
+        records = json.load(f)
+    totals: dict[str, int] = defaultdict(int)
+    for r in records:
+        totals[r["character_name"]] += r["mention_count"]
+    ranked = sorted(totals.items(), key=lambda x: -x[1])
+    return [name for name, _ in ranked[:n]]
 
 
 def main() -> None:
     with open(INPUT_PATH, encoding="utf-8") as f:
         chapters = json.load(f)
+
+    # Build lookup: (book_number, chapter_number) → title fields
+    chapter_meta: dict[tuple[int, int], dict] = {}
+    for ch in chapters:
+        key = (ch["book_number"], ch["chapter_number"])
+        chapter_meta[key] = {
+            "book_title": ch.get("book_title", f"Book {ch['book_number']}"),
+            "chapter_title": ch.get("chapter_title", f"Chapter {ch['chapter_number']}"),
+        }
+
+    top_characters = load_top_characters(TOP_N_CHARACTERS)
+    log.info(f"Top {TOP_N_CHARACTERS} characters loaded for mention matching")
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
@@ -46,12 +72,19 @@ def main() -> None:
     # Build flat list of (text, metadata) tuples
     chunks: list[tuple[str, dict]] = []
     for ch in chapters:
+        key = (ch["book_number"], ch["chapter_number"])
+        titles = chapter_meta[key]
         texts = splitter.split_text(ch["text"])
         for idx, text in enumerate(texts):
+            found = [name for name in top_characters if name in text]
             chunks.append((text, {
                 "book": ch["book_number"],
+                "book_title": titles["book_title"],
                 "chapter": ch["chapter_number"],
+                "chapter_title": titles["chapter_title"],
                 "chunk_index": idx,
+                "word_count": len(text.split()),
+                "characters_mentioned": ",".join(found),
             }))
 
     log.info(f"Total chunks to embed: {len(chunks)}")
@@ -94,11 +127,10 @@ def main() -> None:
     # --- Validation ---
     total_stored = collection.count()
     log.info(f"\nTotal chunks stored: {total_stored}")
-    log.info(f"Collection count: {total_stored}")
     log.info(f"Collection name: {collection.name}")
 
-    # 3 random samples spread across different books
-    log.info("\nRandom sample chunks:")
+    # 3 random samples spread across different books — verify all new metadata fields
+    log.info("\nRandom sample chunks (verify enriched metadata):")
     seen_books: set[int] = set()
     candidates = list(range(len(chunks)))
     random.shuffle(candidates)
@@ -114,10 +146,13 @@ def main() -> None:
     for i in samples:
         text, meta = chunks[i]
         log.info(
-            f"  [{ids[i]}] book={meta['book']} chapter={meta['chapter']} "
-            f"chunk_index={meta['chunk_index']}"
+            f"  [{ids[i]}]\n"
+            f"    book={meta['book']} book_title={meta['book_title']!r}\n"
+            f"    chapter={meta['chapter']} chapter_title={meta['chapter_title']!r}\n"
+            f"    chunk_index={meta['chunk_index']} word_count={meta['word_count']}\n"
+            f"    characters_mentioned={meta['characters_mentioned']!r}\n"
+            f"    text={text[:80]!r}"
         )
-        log.info(f"  Text: {text[:100]!r}")
 
 
 if __name__ == "__main__":

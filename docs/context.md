@@ -17,7 +17,7 @@
 | Backend | FastAPI · `localhost:8000` |
 | Vector store | ChromaDB · local |
 | Processed data | JSON / CSV files |
-| Frontend | React, Recharts · `localhost:3000` |
+| Frontend | React, Recharts · `localhost:5173` |
 | AI Q&A | Gemini 2.0 Flash (free tier) |
 
 ---
@@ -56,8 +56,9 @@ Analytics dashboard      Chat Q&A panel
 hp-dashboard/
 ├── backend/
 │   ├── preprocessing/
+│   │   ├── run_all.py          ← orchestrator; run this instead of scripts individually
 │   │   ├── chapter_splitter.py
-│   │   ├── alias_resolver.py   ← Gemini alias map; run before ner_mentions.py
+│   │   ├── alias_resolver.py   ← Gemini alias map; run before ner_mentions.py pass 2
 │   │   ├── ner_mentions.py
 │   │   ├── relationships.py
 │   │   ├── sentiment.py
@@ -65,10 +66,12 @@ hp-dashboard/
 │   ├── data/
 │   │   ├── chapters.json
 │   │   ├── sentiment.json
-│   │   ├── aliases.json        ← Gemini alias map (gitignored)
-│   │   ├── aliases_raw.json    ← Gemini response cache (gitignored)
+│   │   ├── aliases.json                    ← Gemini alias map (gitignored)
+│   │   ├── aliases_raw.json                ← Gemini response cache (gitignored)
+│   │   ├── character_aliases.manual.json   ← hand-curated alias map; safe to commit (name mappings only, no book text)
 │   │   ├── characters.json
-│   │   └── relationships.json
+│   │   ├── relationships.json
+│   │   └── events.json                     ← manually curated events (deaths only); no book text; safe to commit
 │   ├── chroma_db/          ← ChromaDB persisted store
 │   ├── routers/
 │   │   ├── story.py
@@ -78,10 +81,21 @@ hp-dashboard/
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
+│   │   ├── api/
+│   │   │   ├── config.js       ← API_BASE (reads VITE_API_BASE env var, defaults to localhost:8000)
+│   │   │   ├── story.js
+│   │   │   ├── characters.js
+│   │   │   └── chat.js
+│   │   ├── context/
+│   │   │   └── FilterContext.jsx   ← selectedBooks: number[]; FilterProvider wraps App; useFilter() hook
 │   │   ├── components/
+│   │   │   ├── Card.jsx            ← reusable card wrapper (title, subtitle props); bg-neutral-900
+│   │   │   ├── FilterBar.jsx       ← global book filter bar (Books 1–7 toggles + All/Clear)
 │   │   │   ├── StoryArc/
 │   │   │   ├── CharacterIntel/
 │   │   │   └── ChatPanel/
+│   │   │       ├── ChatPanel.jsx   ← chat UI; suggested chips; filter indicator; copy/clear buttons; source card streaming
+│   │   │       └── SourceCards.jsx ← source pill cards rendered below each AI answer
 │   │   ├── App.jsx
 │   │   └── main.jsx
 │   └── package.json
@@ -106,13 +120,16 @@ hp-dashboard/
 | Backend | FastAPI (Python) | Fits Python-heavy preprocessing stack |
 | Vector store | ChromaDB | Fully local, no external service needed |
 | NER | spaCy | Best Python NER library for named entity extraction |
-| NER entity normalisation | Possessives stripped before counting; structural phrase fragments blocked via blocklist; Gemini-based alias resolution via alias_resolver.py | alias_resolver.py sends top-200 entities to Gemini in one call, gets back a JSON alias→canonical map, validates every canonical value against the input list (prevents hallucination), writes aliases.json; ner_mentions.py loads aliases.json at startup and applies it in Pass 2; 22 validated aliases resolved including Harry→Harry Potter, Dumbledore→Albus Dumbledore, Hermione→Hermione Granger, Malfoy→Draco Malfoy; ambiguous surnames (Weasley, Ron) correctly omitted from map by Gemini |
+| NER entity normalisation | Possessives stripped before counting; structural phrase fragments blocked via blocklist; two-tier alias resolution: manual dictionary + Gemini-based alias resolution via alias_resolver.py | alias_resolver.py sends top-200 entities to Gemini, gets back alias→canonical map validated against input list, writes aliases.json; ner_mentions.py loads both character_aliases.manual.json (37 manual aliases) and aliases.json (Gemini aliases), merges them with manual taking priority for any overlap, applies merged map in Pass 2; 52 aliases applied in pass 2; manual aliases resolve single-token names missing from Gemini (Ron, Lupin, McGonagall, Hagrid, Neville, Ginny, Cedric, Sirius, Moody, Tonks, all Weasley first names, Voldemort aliases); ambiguous surnames (Weasley alone, Potter alone) intentionally excluded from both maps |
 | Relationship graph library | react-force-graph-2d | Force-directed layout, canvas-based, simple API, maintained; D3 rejected as too low-level for this scope |
 | Relationship edge construction | Chapter co-occurrence, top-30 characters only | Co-occurrence is computable from existing characters.json; interaction-based approach would need dialogue attribution (unresolved) |
+| Relationship graph centrality | networkx degree, weighted_degree, betweenness, pagerank per node | Computed in relationships.py and stored in relationships.json nodes; used to size nodes in the frontend (pagerank → radius 3–10px); nodes also carry a books field listing which books each character appears in |
+| Global filter state | React Context (FilterContext) — selectedBooks: number[] | Wraps the entire app from App.jsx; all filtering is client-side via useMemo in each component; no backend filter params needed since all data is loaded in full; book filter only — character and chapter range filters deferred |
 | Sentiment | VADER | Lightweight, no model download, works well on narrative text |
-| Chunking | LangChain | Standard RAG tooling |
+| Chunking | LangChain | Standard RAG tooling; chunk metadata includes book_title, chapter_title, word_count, characters_mentioned (top-30 characters, comma-separated string) |
 | Embedding model | `sentence-transformers/all-MiniLM-L6-v2` | Confirmed over Gemini Embedding API — fully local, no API cost, runs on MPS |
 | AI model | Gemini 3.1 Flash Lite via Vertex AI (google-genai SDK, ADC auth) | Switched from API key auth — uses GCP project hpdashboard, requires gcloud auth application-default login on local machine |
+| Chat stream protocol | `__SOURCES__:<json>\n` header line before AI tokens | Backend emits deduplicated `[{book_title, chapter_title}]` from ChromaDB metadatas as first line; frontend buffers until `\n`, parses header, then streams remaining bytes as message text; frontend renders `SourceCards` from parsed sources |
 | Deployment | None — localhost only | Book text is copyrighted, keeping everything local |
 | Book text in git | No — gitignored | Copyright compliance |
 | Preprocessing data in git | No — gitignored | Derived from copyrighted text |
@@ -125,7 +142,7 @@ hp-dashboard/
 - All preprocessing outputs (JSON/CSV/ChromaDB) are also **gitignored**
 - The only external network call is to the **Gemini API**
 - No deployment — runs entirely on `localhost`
-- Gemini API key lives in `/backend/.env` as `GEMINI_API_KEY` — never hardcoded
+- Gemini access uses Vertex AI ADC auth (`gcloud auth application-default login`) — no API key; GCP project `hpdashboard`; optional overrides `GCP_PROJECT` and `GCP_LOCATION` in `/backend/.env`
 - Do not suggest adding auth, user accounts, or sessions
 - Do not add dependencies without a clear reason
 - Do not use `print()` for logging in FastAPI — use Python `logging`
@@ -164,7 +181,7 @@ hp-dashboard/
 
 ## Architecture Rules
 
-- Preprocessing scripts run **once**, outputs are saved to `/backend/data/`
+- Preprocessing scripts run **once** via `backend/preprocessing/run_all.py`, outputs saved to `/backend/data/`
 - FastAPI routes are **read-only** — they serve pre-computed data, they do not re-run analysis
 - The `/api/chat` route is the only route that calls Gemini
 - Chart context passed to Gemini must be **serialised JSON**, not raw rendered HTML
@@ -178,7 +195,7 @@ hp-dashboard/
 - Python environment: venv at `/backend/.venv` — activate with `source backend/.venv/bin/activate`
 - Node: via nvm
 - Books location: `/books/` (gitignored)
-- Gemini API key: stored in `/backend/.env` as `GEMINI_API_KEY`
+- Gemini: Vertex AI ADC auth; `gcloud auth application-default login` required; GCP project defaults to `hpdashboard`
 
 ---
 
@@ -201,7 +218,7 @@ hp-dashboard/
 | Book 5 | 39 chapters detected vs 38 expected (1 extra) | Possible false-positive ALL CAPS heading in source text | Accepted as OCR artifact. |
 | All books | spaCy PERSON false positives | "the Order of" and possessive forms (e.g. "Harry's") were surfacing as separate entities. Fixed via normalise() and blocklist in ner_mentions.py. "Harry" vs "Harry Potter" left fragmented intentionally — alias resolution deferred to relationship graph phase. | — |
 | All books | VADER compound saturation | VADER compound score saturated at ±0.9999 for long chapter texts due to sigmoid accumulation on full chapter strings. Fixed in session 6: `sentiment.py` now scores at sentence level via `nltk.sent_tokenize` and averages compound/pos/neg/neu per chapter. Compound range is now -0.2157 to +0.1340 with 0/198 chapters saturated. | Resolved |
-| All books | Alias resolution — Gemini approach, ambiguous surnames unresolved by design | Replaced the heuristic frequency-inversion guard with a Gemini call (alias_resolver.py). Gemini correctly resolved Harry→Harry Potter, Dumbledore→Albus Dumbledore, Hermione→Hermione Granger, Malfoy→Draco Malfoy, and 18 others. Gemini correctly omitted ambiguous surnames (Weasley, Ron→Ron Weasley was discarded since "Ron Weasley" is not in top-200 entities) — these remain as unresolved nodes in the relationship graph. "Potter" (640 mentions, separate from "Harry Potter") is also unresolved — valid because "Potter" as a bare surname refers to Harry, James, and Lily in different contexts. Remaining limitation: single-token names that lack a matching full form in top-200 cannot be resolved (Ron, Lupin, McGonagall). |
+| All books | Alias resolution — two-tier approach, ambiguous surnames unresolved by design | Gemini alias map (aliases.json) resolved 29 aliases including core names. Manual dictionary (character_aliases.manual.json) added 37 more, covering single-token names Gemini couldn't resolve (Ron, Lupin, McGonagall, Hagrid, Neville, Ginny, Cedric, Sirius, Moody, Tonks, all Weasley first names) plus Voldemort aliases. 52 of 55 merged aliases were applied in pass 2. "Weasley" (bare surname, 1360 mentions) and "Potter" (bare surname, 640 mentions) intentionally excluded from both maps — they are genuinely ambiguous across multiple characters. |
 
 ---
 

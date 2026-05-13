@@ -4,8 +4,10 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { fetchMentions } from '../../api/characters'
+import { useFilter } from '../../context/FilterContext'
 import CharacterFilter from './CharacterFilter'
 import { COLORS } from '../../utils/colors'
+import { THEME, BOOK_TITLES } from '../../utils/theme'
 
 function buildChartData(records) {
   const pairMap = new Map()
@@ -35,9 +37,11 @@ function topByTotal(records, n) {
 function CustomTooltip({ active, payload }) {
   if (!active || !payload?.length) return null
   const d = payload[0]?.payload
+  const bookTitle = BOOK_TITLES[d?.book] || `Book ${d?.book}`
   return (
-    <div className="bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-xs text-neutral-200 max-w-[180px]">
-      <p className="mb-1 text-neutral-400">Book {d?.book} · Ch {d?.chapter}</p>
+    <div className="bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-xs text-neutral-200 max-w-[200px]">
+      <p className="font-medium text-neutral-100 truncate">{bookTitle}</p>
+      <p className="text-neutral-400 mb-1">Chapter {d?.chapter}</p>
       {payload.map(p => (
         <p key={p.dataKey} style={{ color: p.color }}>{p.name}: {p.value}</p>
       ))}
@@ -46,8 +50,8 @@ function CustomTooltip({ active, payload }) {
 }
 
 export default function MentionsChart({ onContextChange }) {
-  const [records, setRecords] = useState([])
-  const [top20, setTop20] = useState([])
+  const { selectedBooks } = useFilter()
+  const [allRecords, setAllRecords] = useState([])
   const [selected, setSelected] = useState(new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -55,27 +59,31 @@ export default function MentionsChart({ onContextChange }) {
   useEffect(() => {
     fetchMentions()
       .then(data => {
+        setAllRecords(data)
         const t20 = topByTotal(data, 20)
-        setRecords(data)
-        setTop20(t20)
         setSelected(new Set(t20.slice(0, 10).map(c => c.name)))
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
   }, [])
 
-  // Fire on load and on every selection change
+  const filteredRecords = useMemo(
+    () => allRecords.filter(r => selectedBooks.includes(r.book)),
+    [allRecords, selectedBooks]
+  )
+
+  const top20 = useMemo(() => topByTotal(filteredRecords, 20), [filteredRecords])
+  const chartData = useMemo(() => buildChartData(filteredRecords), [filteredRecords])
+  const activeChars = top20.filter(c => selected.has(c.name))
+
   useEffect(() => {
     if (!top20.length) return
     onContextChange?.({
       chart: 'mentions',
       activeCharacters: [...selected],
-      topCharacter: top20[0].name,
+      topCharacter: top20[0]?.name,
     })
   }, [selected, top20, onContextChange])
-
-  const chartData = useMemo(() => buildChartData(records), [records])
-  const activeChars = top20.filter(c => selected.has(c.name))
 
   function toggleChar(name) {
     setSelected(prev => {
@@ -87,15 +95,23 @@ export default function MentionsChart({ onContextChange }) {
 
   if (loading) return <div className="flex items-center justify-center h-64 text-neutral-500 text-sm">Loading mentions…</div>
   if (error) return <div className="flex items-center justify-center h-64 text-red-400 text-sm">Error: {error}</div>
+  if (!selectedBooks.length || !filteredRecords.length) return <div className="flex items-center justify-center h-32 text-neutral-500 text-sm">No books selected</div>
 
   return (
     <div>
       <CharacterFilter characters={top20} selected={selected} onToggle={toggleChar} />
       <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#262626" />
-          <XAxis dataKey="index" tick={{ fill: '#737373', fontSize: 11 }} label={{ value: 'Chapter (global)', position: 'insideBottom', offset: -4, fill: '#525252', fontSize: 11 }} />
-          <YAxis tick={{ fill: '#737373', fontSize: 11 }} />
+        <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 24, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={THEME.chart.grid} />
+          <XAxis
+            dataKey="index"
+            tick={{ fill: THEME.chart.tick, fontSize: 11 }}
+            label={{ value: 'Chapter (series)', position: 'insideBottom', offset: -12, fill: THEME.chart.label, fontSize: 11 }}
+          />
+          <YAxis
+            tick={{ fill: THEME.chart.tick, fontSize: 11 }}
+            label={{ value: 'Mentions', angle: -90, position: 'insideLeft', offset: 12, fill: THEME.chart.label, fontSize: 11 }}
+          />
           <Tooltip content={<CustomTooltip />} />
           {activeChars.map(({ name, color }) => (
             <Line key={name} type="monotone" dataKey={name} name={name} stroke={color} dot={false} strokeWidth={1.5} connectNulls />

@@ -1,20 +1,24 @@
 import MentionsChart from './MentionsChart'
 import RelationshipGraph from './RelationshipGraph'
+import CharacterHeatmap from './CharacterHeatmap'
+import Card from '../Card'
 
 export default function CharacterIntel({ onContextChange }) {
   return (
-    <section className="p-6 space-y-8">
-      <h2 className="text-lg font-semibold text-neutral-100 tracking-tight">Character Intelligence</h2>
+    <section className="p-6 space-y-4">
+      <h2 className="text-lg font-semibold text-warm-100 tracking-tight">Character Intelligence</h2>
 
-      <div className="space-y-2">
-        <h3 className="text-sm font-medium text-neutral-400">Mention Frequency</h3>
+      <Card title="Mention Frequency" subtitle="Chapter-by-chapter mention counts for selected characters">
         <MentionsChart onContextChange={onContextChange} />
-      </div>
+      </Card>
 
-      <div className="space-y-2">
-        <h3 className="text-sm font-medium text-neutral-400">Relationships</h3>
+      <Card title="Mentions per 1k Words — by Book" subtitle="Avg density across chapters; colour = intensity">
+        <CharacterHeatmap />
+      </Card>
+
+      <Card title="Relationships" subtitle="Co-occurrence graph — node size = total mentions; click a node for stats">
         <RelationshipGraph />
-      </div>
+      </Card>
     </section>
   )
 }

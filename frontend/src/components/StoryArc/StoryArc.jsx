@@ -1,20 +1,24 @@
 import SentimentChart from './SentimentChart'
 import WordCountChart from './WordCountChart'
+import DeathTimeline from './DeathTimeline'
+import Card from '../Card'
 
 export default function StoryArc({ onContextChange }) {
   return (
-    <section className="p-6 space-y-8">
-      <h2 className="text-lg font-semibold text-neutral-100 tracking-tight">Story Arc</h2>
+    <section className="p-6 space-y-4">
+      <h2 className="text-lg font-semibold text-warm-100 tracking-tight">Story Arc</h2>
 
-      <div className="space-y-2">
-        <h3 className="text-sm font-medium text-neutral-400">Sentiment by Chapter</h3>
+      <Card title="Sentiment by Chapter" subtitle="VADER compound score per chapter, coloured by book">
         <SentimentChart onContextChange={onContextChange} />
-      </div>
+      </Card>
 
-      <div className="space-y-2">
-        <h3 className="text-sm font-medium text-neutral-400">Word Count per Book</h3>
+      <Card title="Major Deaths" subtitle="Key character deaths across the series">
+        <DeathTimeline />
+      </Card>
+
+      <Card title="Word Count per Book">
         <WordCountChart onContextChange={onContextChange} />
-      </div>
+      </Card>
     </section>
   )
 }

@@ -18,12 +18,13 @@ _mentions: list[dict] = [
         "book": r["book_number"],
         "chapter": r["chapter_number"],
         "mention_count": r["mention_count"],
+        "mentions_per_1k_words": r.get("mentions_per_1k_words", 0.0),
     }
     for r in _raw
 ]
 
 with (_DATA_DIR / "relationships.json").open() as f:
-    _relationships: list = json.load(f)
+    _rel_data: dict = json.load(f)
 
 router = APIRouter()
 
@@ -33,6 +34,17 @@ class MentionRecord(BaseModel):
     book: int
     chapter: int
     mention_count: int
+    mentions_per_1k_words: float = 0.0
+
+
+class NodeRecord(BaseModel):
+    id: str
+    mention_count: int
+    degree: int
+    weighted_degree: float
+    betweenness: float
+    pagerank: float
+    books: list[int]
 
 
 class RelationshipRecord(BaseModel):
@@ -41,13 +53,18 @@ class RelationshipRecord(BaseModel):
     weight: int
 
 
+class RelationshipsResponse(BaseModel):
+    nodes: list[NodeRecord]
+    edges: list[RelationshipRecord]
+
+
 @router.get("/mentions", response_model=list[MentionRecord])
 def get_mentions() -> list[dict]:
     """Return per-chapter character mention counts."""
     return _mentions
 
 
-@router.get("/relationships", response_model=list[RelationshipRecord])
-def get_relationships() -> list:
-    """Return character co-occurrence edge list for the top 30 characters."""
-    return _relationships
+@router.get("/relationships", response_model=RelationshipsResponse)
+def get_relationships() -> dict:
+    """Return character co-occurrence graph with centrality metrics for the top 30 characters."""
+    return _rel_data

@@ -15,7 +15,7 @@ Combines a **Story Arc dashboard** (sentiment timeline, character mentions, deat
 - Character relationship graph
 - Allegiance shift tracking
 - Death timeline
-- AI chat panel with context from the currently visible chart (powered by Gemini)
+- AI chat panel with context from the currently visible chart (powered by Gemini 3.1 Flash Lite via Vertex AI)
 - RAG-grounded answers pulled from book text via ChromaDB
 
 ---
@@ -24,7 +24,7 @@ Combines a **Story Arc dashboard** (sentiment timeline, character mentions, deat
 
 - Python 3.11+
 - Node.js 18+
-- A [Gemini API key](https://aistudio.google.com/app/apikey) (free tier)
+- A Google Cloud project with the Vertex AI API enabled, and `gcloud auth application-default login` completed on your machine (used for Gemini access — no API key needed)
 - Harry Potter book text files (not included — source your own copies)
 
 ---
@@ -64,23 +64,22 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Create a `.env` file in `/backend/`:
+Create a `.env` file in `/backend/` with your GCP project details if they differ from the defaults:
 
 ```
-GEMINI_API_KEY=your_key_here
+GCP_PROJECT=hpdashboard
+GCP_LOCATION=global
 ```
+
+Authentication uses Google Application Default Credentials (ADC). Run `gcloud auth application-default login` before starting the backend.
 
 ### 4. Run preprocessing (once only)
 
 ```bash
-cd backend
-python preprocessing/chapter_splitter.py
-python preprocessing/ner_mentions.py
-python preprocessing/sentiment.py
-python preprocessing/chunker.py
+python backend/preprocessing/run_all.py
 ```
 
-This generates all JSON/CSV files and populates ChromaDB. You only need to run this once.
+This runs all preprocessing scripts in the correct order and generates the JSON files and ChromaDB collection. You only need to run this once.
 
 ### 5. Start the backend
 
@@ -99,13 +98,13 @@ npm install
 npm run dev
 ```
 
-Frontend runs at `http://localhost:3000`.
+Frontend runs at `http://localhost:5173`.
 
 ---
 
 ## Project Structure
 
-See [`docs/architecture.md`](docs/architecture.md) for the full breakdown.
+See [`docs/context.md`](docs/context.md) for the full breakdown.
 
 ---
 
@@ -116,7 +115,7 @@ The following are never committed:
 - `/books/` — book text files
 - `/backend/data/` — preprocessed JSON/CSV
 - `/backend/chroma_db/` — vector store
-- `/backend/.env` — API key
+- `/backend/.env` — environment config
 
 ---
 
